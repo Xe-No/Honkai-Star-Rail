@@ -5,10 +5,11 @@
 
 from tools.switch_window import switch_window
 from tools.get_angle import get_angle
+from tools.calculated import calculated
 import time 
 import cv2 as cv
 import numpy as np
-import win32gui
+import win32gui, win32api, win32con
 import pyautogui
 
 
@@ -20,15 +21,16 @@ def get_binary(img, threshold=200):
 def show_img(img, scale=1, title='Image'):
     # cv.namedWindow('image', cv.WINDOW_NORMAL)
     h, w = img.shape[:2]
-    img = cv.resize( img ,(int(w*scale), int(h*scale))  )
+    img = cv.resize( img, (0,0), fx=scale, fy=scale  )
     cv.imshow(title, img)
     cv.waitKey(0)
     cv.destroyAllWindows()  
 
-def show_imgs(imgs, title='Image'):
-    cv.imshow(title, np.hstack(imgs))
-    cv.waitKey(0)
-    cv.destroyAllWindows()  
+
+
+def show_imgs(imgs, scale=1, title='Image'):
+    img = np.hstack(imgs)
+    show_img(img, scale, title)
 
 def get_loc(im, imt):
     result = cv.matchTemplate(im, imt, cv.TM_CCORR_NORMED)
@@ -45,14 +47,34 @@ def take_screenshot(rect):
     screenshot = cv.cvtColor(screenshot, cv.COLOR_BGR2RGB)
     return screenshot
 
+def take_minimap(rect = [47,58,187,187]):
+    return take_screenshot(rect)
+
+def take_fine_screenshot(rect = [47,58,187,187], n = 5, dt=0.01, dy=200):
+    total = take_screenshot(rect)
+    n = 5
+    for i in range(n):
+        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, -dy, 0, 0)
+        mask = cv.compare(total, take_screenshot(rect), cv.CMP_EQ )
+        total = cv.bitwise_and(total, mask )
+        time.sleep(dt)
+    time.sleep(0.1)
+    for i in range(n):
+        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, dy, 0, 0)
+        mask = cv.compare(total, take_screenshot(rect), cv.CMP_EQ )
+        total = cv.bitwise_and(total, mask )
+        time.sleep(dt)
+    minimap = cv.bitwise_and(total, mask )
+    return minimap
+
 def get_mask(img, color_range):
     lower, upper = color_range
     return cv.inRange(img, lower, upper)
 
-def get_camera_fan(color = [130, 130, 60],angle=0, w=187, h=187, delta=90):
+def get_camera_fan(color = [130, 130, 60],angle=0, w=187, h=187, delta=90, dimen =3, radius= 90):
     center = (w//2, h//2)
-    radius = min(h, w)//2
-    fan = np.zeros((h, w, 3), np.uint8)
+    # radius = min(h, w)//2
+    fan = np.zeros((h, w, dimen), np.uint8)
     # 计算圆心位置
     cx, cy = w // 2, h // 2
     axes = (w // 2, h // 2) 
@@ -95,3 +117,31 @@ def filter_contours_surround_point(gray, point):
     return surrounded_contours
 
 
+def sift_match(img1, img2):
+    # 创建SIFT对象
+    sift = cv.SIFT_create()
+
+    # 检测关键点和描述符
+    kp1, des1 = sift.detectAndCompute(img1, None)
+    kp2, des2 = sift.detectAndCompute(img2, None)
+
+
+    # 建立FLANN匹配对象
+    FLANN_INDEX_KDTREE = 0
+    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+    search_params = dict(checks=50)
+    flann = cv.FlannBasedMatcher(index_params, search_params)
+
+    # 根据描述符进行匹配
+    matches = flann.knnMatch(des1, des2, k=2)
+
+    # 筛选最优匹配
+    good_matches = []
+    for m, n in matches:
+        if m.distance < 0.9 * n.distance:
+            good_matches.append(m)
+
+    # 绘制匹配结果
+    img_match = cv.drawMatches(img1, kp1, img2, kp2, good_matches, None, flags=2)
+
+    return img_match

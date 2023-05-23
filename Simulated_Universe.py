@@ -19,12 +19,13 @@ from universeAuto import Pathfinder
 
 # from pathfinder import PathfinderV1
 import keyboard
+from tools.log import log
 
 # World_num = input('请输入数字!!!\n第()世界:')
 # buff_num = input('-----选择命途-----\n1:存护 2:记忆 3:虚无 4:丰饶 5:巡猎 6:毁灭 7:欢愉\n请输入数字:')
-# print('一定要用拼音输入角色名!!!(绝对不是因为我不会英语)\n' * 3, '举例:布洛妮娅=buluoniya,希儿=xier' * 3,
+# log.info('一定要用拼音输入角色名!!!(绝对不是因为我不会英语)\n' * 3, '举例:布洛妮娅=buluoniya,希儿=xier' * 3,
 #       '\n主角是属性+主,如火主即huozhu,物主即wuzhu\n0代表女主,1代表男主')
-# print('觉得拼音麻烦可以在 temp\\Simulated_Universe\\role 目录下自行修改对应角色头像文件名')
+# log.info('觉得拼音麻烦可以在 temp\\Simulated_Universe\\role 目录下自行修改对应角色头像文件名')
 # 有些buff的图没截取，可以手动截 buff_1.jpg
 
 # 世界序号
@@ -33,8 +34,10 @@ World_num = '6'
 difficulty = 1
 # 命途序号
 buff_num = '5'
+# 次要祝福，没有重置且没有命途祝福的选择
+buff_num_sec = '1'
 # 阵容，填角色对应头像文件名
-role_list = ['xier', 'natasha', 'jiepade', 'tingyun']
+role_list = ['xier', 'natasha', 'jiepade', 'jingyuan']
 
 
 def match_similar_by_binary(source_img, target_img, threshold, debug=False):
@@ -154,7 +157,7 @@ class SimulatedUniverse:
 			if result['max_val'] > 0.9:
 				self.calculated.click_target(
 					f'{self.prefix}choose_4.jpg', 0.98)
-			print("进入地图")
+			log.info("进入地图")
 		wait(5)
 
 	def get_all_map_name(self) -> list:
@@ -170,7 +173,7 @@ class SimulatedUniverse:
 	def map_select(self) -> int:
 		# 判断地图
 		wait(0.5)
-		print("Start searching")
+		log.info("Start searching")
 		map_list = self.get_all_map_name()
 		cur_map = ''
 		similarity_score_buffer = 0
@@ -179,12 +182,12 @@ class SimulatedUniverse:
 			image_b = cv.imread(path)
 			image_a = pyautogui.screenshot(region=(self.miniMap[0], self.miniMap[1], self.miniMap[2], self.miniMap[3]))
 			similarity_score = self.pic_similarity(image_a, image_b, -1)
-			print("The similarity of " + map + " is " + str(similarity_score))
+			log.info("The similarity of " + map + " is " + str(similarity_score))
 			if similarity_score_buffer < similarity_score:
 				screenS = image_a
 				cur_map = map
 				similarity_score_buffer = similarity_score
-		print("The current map is " + cur_map)
+		log.info("The current map is " + cur_map)
 		return cur_map
 
 	def pic_similarity(self, image_a, image_b, threshold) -> float:
@@ -200,9 +203,9 @@ class SimulatedUniverse:
 		map_data = read_json_file(f"map\\{map}.json")
 		map_filename = map
 		# 开始寻路
-		print("开始寻路")
+		log.info("开始寻路")
 		for map_index, map in enumerate(map_data['map']):
-			print(f"执行map文件:{map_index + 1}/{len(map_data['map'])}", map)
+			log.info(f"执行map文件:{map_index + 1}/{len(map_data['map'])}", map)
 			key = list(map.keys())[0]
 			value = map[key]
 			if key in ['w', 's', 'a', 'd', 'f']:
@@ -237,22 +240,22 @@ class SimulatedUniverse:
 		return '未知'
 
 	def state_handler(self, init_state=''):
-		print(f'状态处理器已经启动，初始状态为：【{init_state}】')
+		log.info(f'状态处理器已经启动，初始状态为：【{init_state}】')
 		unknown = 0
 		max = 60
 		if init_state == '':
-			state = self.check_state
+			state = self.check_state()
 		else:
 			state = init_state
 
 		if state == 'start':
 			max = 1
 		while 1:
-			print(f'目前状态{state}')
+			log.info(f'目前状态{state}')
 			if state == '祝福':
 				# 丢弃祝福
 				if self.verify(f'{self.prefix}wish_drop.jpg', [830,98,262,34], 0.9):
-					print('需要丢弃祝福')
+					log.info('需要丢弃祝福')
 					self.click(806, 473) #选中间
 					self.calculated.click_target(f'{self.prefix}drop.jpg', 0.9)
 					wait()
@@ -271,49 +274,41 @@ class SimulatedUniverse:
 				self.click(1703, 963)
 				unknown = 0
 			elif state == '战斗':
-				print('等待战斗结束')
-				while self.check_state() in ['战斗','未知']:
+				# 
+				# log.info('等待进入战斗')
+				# while not self.battleVerify(90):
+				# 	wait(0.1)
+				log.info('等待战斗结束')
+				while not self.wishVerify(90):
 					wait(1)
-				print('战斗结束')
-
+				log.info('战斗结束')
 			elif state == '奇物':
 				self.choose_object()
-				
-				
 
 				# self.calculated.click_target(f'{self.prefix}object_confirm.jpg', 0.70, True)
 			elif state == '事件':
 				self.handle_event()
-				return '事件完成'
+
 
 			elif state == '场景':
-				# 前面的状态都已经完成
+				# 查看场景，检查是否有事件
+
+				
 				if self.level_index ==0:
 					return 
 
-				print('完成本关任务，回到场景，寻找传送门')
-				for _ in range(3):
-					if move_to_atlas(f'{self.prefix}atlas_portal.jpg'):
-						print('正在传送')
-						if self.level_type in  ['精英', '首领']:
-							wait(3)
-							self.calculated.click_target(f'{self.prefix}claim_reward_confirm.jpg', 0.90)
-						return
-					else:
-						pyautogui.keyDown('s')
-						wait(1)
-						pyautogui.keyUp('s')
+				log.info('完成本关任务，回到场景，寻找传送门')
+				if self.goto_atlas_and_enter('atlas_portal.jpg','传送门'):
+					if self.level_type in  ['精英', '首领']:
 						wait(3)
+						self.calculated.click_target(f'{self.prefix}claim_reward_confirm.jpg', 0.90)
+					return
 
-				
-				print('没找到传送门，暂时挂起，F8继续')
-				self.hang()
-				return
 
 			elif (state == '未知') :
 				unknown += 1
 				if unknown > 10:
-					print('尝试一些少见的情况')
+					log.info('尝试一些少见的情况')
 					self.find_and_click(f'{self.prefix}object_confirm.jpg', 0.70)
 					self.find_and_click(f'{self.prefix}confirm2.jpg', 0.70)
 					self.find_and_click(f'{self.prefix}confirm3.jpg', 0.70)
@@ -321,7 +316,7 @@ class SimulatedUniverse:
 					state = '失败'
 
 			elif (state == '失败') :
-				print('尝试失败，暂时挂起，稍微远离传送门并且按F8以继续')
+				log.info('尝试失败，暂时挂起，稍微远离传送门并且按F8以继续')
 				while 1:
 					if keyboard.is_pressed("F8"):
 						return
@@ -332,7 +327,7 @@ class SimulatedUniverse:
 
 	def handle_level(self):
 		self.level_type = self.check_level()
-		print(f'开始执行关卡{self.level_index}-{self.level_type}')
+		log.info(f'开始执行关卡{self.level_index}-{self.level_type}')
 		if self.level_index == 0:
 			self.start_init()
 			self.start()
@@ -341,8 +336,9 @@ class SimulatedUniverse:
 			# move_to_atlas(f'{self.prefix}atlas_elite.jpg', 'A')
 			if self.level_type == '长战':
 				if self.mode == 1:
-					print('长战，直接挂起，进入与看门敌人的战斗后按F8')
+					log.info('长战，直接挂起，走到敌人关底敌人附近后按F8，会自动攻击并继续')
 					self.hang()
+					self.click(600,600)
 				if self.mode == 2:
 					self.handle_long_level()
 
@@ -351,22 +347,22 @@ class SimulatedUniverse:
 				pyautogui.click(600,600)   
 			wait(2)
 			if self.sceneVerify(90):
-				print('尝试攻击后还在主场景中，进入战斗后按F8')
+				log.info('尝试攻击后还在主场景中，进入战斗后按F8')
 				self.hang()
 				
-			print('已经发动攻击，10秒后将控制权移交给状态处理器')
+			log.info('已经发动攻击，10秒后将控制权移交给状态处理器')
 			wait(8)
 			self.state_handler('战斗')
 
 		elif self.level_type in ['事件', '遭遇', '交易']:
-			move_to_atlas(f'{self.prefix}atlas_event.jpg')
-			self.state_handler()
+			self.goto_atlas_and_enter( 'atlas_event.jpg', '事件')
+			self.state_handler('事件')
 
 		elif self.level_type == '休整':
 			self.run_f(15)
 		
 		else:
-			print('未知关，过到下一个关之后输入F8以同步状态')
+			log.info('未知关，过到下一个关之后输入F8以同步状态')
 			while 1:
 				if keyboard.is_pressed("F8"):
 					break
@@ -379,17 +375,40 @@ class SimulatedUniverse:
 			if keyboard.is_pressed("F8"):
 				break
 
+	def goto_atlas_and_enter(self, atlas_path, atlas_name):
+		for _ in range(3):
+			log.info('尝试移动到{atlas_name}')
+			if move_to_atlas(f'{self.prefix}{atlas_path}'):
+				wait(0.5)
+				if get_image_pos(f'{self.prefix}interaction_confirm.jpg', 0.8):
+					pyautogui.press('f')
+					log.info('正在进入{atlas_name}')
+					return True
+
+
+			pyautogui.keyDown('s')
+			wait(1)
+			pyautogui.keyUp('s')
+			wait(3)
+
+		
+		log.info('没有成功进入{atlas_name}，暂时挂起，请手动移动至{atlas_name}附近使互动按钮出现，并让脚本点击互动按钮')
+		while not get_image_pos(f'{self.prefix}interaction_confirm.jpg', 0.8):
+			wait(0.5)
+		pyautogui.press('f')
+		log.info('已进入{atlas_name}')
+		return True
 
 	def handle_event(self):
 		# 事件，暂时暴力点几下
 		for i in range(30):
-			print(f'事件点击循环{i}')
+			log.info(f'事件点击循环{i}')
 			self.find_and_click(f'{self.prefix}event_selector.jpg', 0.90)
 			self.find_and_click(f'{self.prefix}event_selector2.jpg', 0.90)
 			self.find_and_click(f'{self.prefix}event_clicker.jpg', 0.90)
 			self.find_and_click(f'{self.prefix}event_confirm.jpg', 0.90)     
 			if not self.eventVerify(90):
-				print('完成事件')
+				log.info('完成事件')
 				return 0
 			wait(1)
 
@@ -401,7 +420,7 @@ class SimulatedUniverse:
 		min_val, max_val, min_loc, max_loc = match_similar_by_binary(image_s, image, 40)
 
 
-		print(f'{img_path} : {max_val}')
+		log.info(f'{img_path} : {max_val}')
 		if max_val > threshold:
 			return 1
 		return 0
@@ -421,7 +440,7 @@ class SimulatedUniverse:
 		image_s = pyautogui.screenshot(region=(self.scene_rect[0], self.scene_rect[1], self.scene_rect[2], self.scene_rect[3]))
 		image = cv.imread(path)
 		similarity = self.pic_similarity(image_s, image, -1)
-		print(similarity)
+		log.info(similarity)
 		if similarity > threshold:
 			return 1
 		return 0
@@ -440,7 +459,7 @@ class SimulatedUniverse:
 		image_s = pyautogui.screenshot(region=(self.object[0], self.object[1], self.object[2], self.object[3]))
 		image = cv.imread(path)
 		similarity = self.pic_similarity(image_s, image, -1)
-		# print(similarity)
+		# log.info(similarity)
 		if similarity > threshold:
 			return 1
 		return 0
@@ -450,7 +469,7 @@ class SimulatedUniverse:
 		image_s = pyautogui.screenshot(region=(self.select[0], self.select[1], self.select[2], self.select[3]))
 		image = cv.imread(path)
 		similarity = self.pic_similarity(image_s, image, -1)
-		# print(similarity)
+		# log.info(similarity)
 		if similarity > threshold:
 			return 1
 		return 0
@@ -473,7 +492,7 @@ class SimulatedUniverse:
 		path = f'{self.prefix}level\\level_{level_type}.jpg'
 		image = cv.imread(path)
 		similarity = self.pic_similarity(image_s, image, -1)
-		print(f'{level_type} : {similarity}')
+		log.info(f'{level_type} : {similarity}')
 		if similarity > threshold:
 			return 1
 		return 0
@@ -493,7 +512,7 @@ class SimulatedUniverse:
 
 
 		similarity = self.pic_similarity(img2_s, img_s, -1)
-		print(f'{level_type} : {similarity}')
+		log.info(f'{level_type} : {similarity}')
 		if similarity > threshold:
 			return 1
 		return 0
@@ -515,7 +534,7 @@ class SimulatedUniverse:
 			elif self.is_level2('trade', 80): return '交易'
 			# elif self.is_level2('boss', 90):  return '首领'
 			
-			print('左上ui未识别，按m仔细识别')
+			log.info('左上ui未识别，按m仔细识别')
 			pyautogui.press('m')
 			wait(3)
 			if self.is_level('battle', 80):  ret = '战斗'  
@@ -535,15 +554,15 @@ class SimulatedUniverse:
 
 
 	def handle_battle(self):
-		print('进入战斗，等待祝福出现')
+		log.info('进入战斗，等待祝福出现')
 		while 1:
 			if self.wishVerify(95):
 				break
-		print('进入祝福，等待结束祝福')
+		log.info('进入祝福，等待结束祝福')
 
 		self.choose_buff()
 
-		print('等待场景')
+		log.info('等待场景')
 		while 1:
 			if self.sceneVerify(90):
 				break
@@ -573,7 +592,7 @@ class SimulatedUniverse:
 		pyautogui.click(1164, 670)
 		wait(7)
 		pyautogui.click(863, 1000)
-		print("Round finished")
+		log.info("Round finished")
 
 	def start_simulated(self):
 		self.start_init()
@@ -591,9 +610,9 @@ class SimulatedUniverse:
 			wait(2)
 			self.calculated.click_target(f'{self.prefix}claim_reward_confirm.jpg', 0.90)    
 
-		print(ret)
+		log.info(ret)
 		if not ret:
-			print('自动过图失败，程序将会等待您手动过图，过图之后按F8重新同步状态')
+			log.info('自动过图失败，程序将会等待您手动过图，过图之后按F8重新同步状态')
 			self.hang()
 				# wait(1)
 
@@ -613,10 +632,10 @@ class SimulatedUniverse:
 		result = self.calculated.scan_screenshot(target)
 		sim = result['max_val']
 		x, y = result['max_loc']
-		print(f'找图最大相似为{sim},坐标为{[x,y]}')
+		log.info(f'找图最大相似为{sim},坐标为{[x,y]}')
 		if sim > threshold:
 			# self.click(x,y)
-			print('?')
+			log.info('?')
 			win32api.SetCursorPos((x, y))
 			win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
 			win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
@@ -628,21 +647,23 @@ class SimulatedUniverse:
 		re_num = 1 #刷新次数
 		
 		while 1:
-			wait(2)
+			
 			# 选择最好的祝福，
 			
 			if self.find_and_click(f'{self.prefix}new_buff.jpg', 0.96): 
-				print('选择新祝福')
+				log.info('选择新祝福')
 				break
 			elif self.find_and_click(f'{self.prefix}buff_{buff_num}.jpg', 0.96): 
-				print(f'选择命途{buff_num}祝福')
+				log.info(f'选择命途{buff_num}祝福')
 				break
 			elif self.find_and_click(f'{self.prefix}refresh_buff.jpg', 0.96):
-				print('刷新一次')
+				log.info('刷新一次')
 			else:
-				print('不能刷新了，选个中间的')
-				self.click(900,400) 
+				log.info('不能刷新了，看看能不能选到次要祝福，也没有就选中间')
+				if not self.find_and_click(f'{self.prefix}buff_{buff_num_sec}.jpg', 0.96):
+					self.click(900,400) 
 				break
+			wait(2)
 		wait(0.3)
 		# 确认
 		self.calculated.click_target(f'{self.prefix}choose_4.jpg', 0.90)
@@ -658,7 +679,7 @@ class SimulatedUniverse:
 	
 
 	def end(self):
-		print('结算完成，确认模拟完成')
+		log.info('结算完成，确认模拟完成')
 		self.calculated.click_target(f'{self.prefix}simulation_end.jpg', 0.90)
 		wait(5)
 
@@ -679,7 +700,7 @@ def single_run():
 
 def semi_run():
 	# start_index = 3
-	print('阵容难度需要在 Simulated_Universe.py 中手动调整，目前有些判定只对第六宇宙生效')
+	log.info('阵容难度需要在 Simulated_Universe.py 中手动调整，目前有些判定只对第六宇宙生效')
 	start_index = int(input('请输入当前关，不在模拟宇宙里填0：'))
 	
 	wait(0.5)
@@ -695,7 +716,7 @@ def semi_run():
 
 def auto_run():
 	# start_index = 3
-	print('阵容难度需要在 Simulated_Universe.py 中手动调整，目前有些判定只对第六宇宙生效')
+	log.info('阵容难度需要在 Simulated_Universe.py 中手动调整，目前有些判定只对第六宇宙生效')
 	start_index = int(input('请输入当前关，不在模拟宇宙里填0：'))
 	
 	wait(0.5)
@@ -710,30 +731,36 @@ def auto_run():
 
 if __name__ == '__main__':
 	# 9 选项设定todo
-	if 0:
-
-		su = SimulatedUniverse(-1)
+	if 1:
+		start_index = 4
+		su = SimulatedUniverse(start_index)
 		wait(0.5)
 		switch_window()
-		wait(0.5)		
-		move_to_atlas(f'{su.prefix}atlas_portal.jpg')
+		wait(0.5)	
+
+		for i in range(start_index,14):
+
+			su.handle_level()
+			wait(0.3)
+		su.end()	
+		# move_to_atlas(f'{su.prefix}atlas_portal.jpg')
 		# su.verify(f'{self.prefix}wish_drop.jpg', [830,98,262,34], 0.9)
-		# print(su.battleVerify(70))
+		# log.info(su.battleVerify(70))
 		# sys.exit()
 		# su.handle_level()
-		print(su.check_level())
-		# print(su.check_state())
+		log.info(su.check_level())
+		# log.info(su.check_state())
 		# su.handle_battle()
 		# su.state_handler('')
 		
-		# print(su.is_level2('relax'))
+		# log.info(su.is_level2('relax'))
 		# su.choose_object()
 		# su.choose_buff()
 		# su.handle_long_level()
 
 		# target = cv.imread(f'{self.prefix}buff_5.jpg')
 		# result = su.calculated.scan_screenshot(target)
-		# print(result)
+		# log.info(result)
 		# point = result['min_loc']
 		# su.click(point[0],point[1])
 		sys.exit()

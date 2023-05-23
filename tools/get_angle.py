@@ -133,6 +133,9 @@ def get_angle(debug=False, sample_image=False):
 
 	return angle
 
+
+	
+
 def get_camera_angle(debug=False, sample_image=False):
 	
 	# x,y = [47,58]
