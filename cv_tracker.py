@@ -19,24 +19,21 @@ from PIL import Image
 
 
 def match_scaled(img, template, scale):
-    # width = int(template.shape[1] * scale_percent / 100)
-    # height = int(template.shape[0] * scale_percent / 100)
-    # dim = (width, height)
-    # resized_template = cv.resize(template, dim, interpolation=cv.INTER_AREA)
     resized_template = cv.resize(template, (0,0), fx=scale, fy=scale)
     res = cv.matchTemplate(img, resized_template, cv.TM_CCOEFF_NORMED)
     min_val, max_val, min_loc, max_loc = cv.minMaxLoc(res)
     return [max_val, max_loc]
 
-def find_best_match(img, template, scale_range=(160, 200, 5)):
+def find_best_match(img, template, scale_range=(1.4, 2.0, 0.05)):
     best_match = None
     max_corr = -1
-    for scale_percent in range(scale_range[0], scale_range[1],scale_range[2]):
-        [max_val, max_loc] = match_scaled(img, template)
-        print(f'正在匹配 {scale_percent}，相似度{max_val}')
+    print(img.shape)
+    for scale in np.arange(scale_range[0], scale_range[1],scale_range[2]):
+        [max_val, max_loc] = match_scaled(img, template, scale)
+        print(f'正在匹配 {scale}，相似度{max_val}')
         if max_val > max_corr:
             max_corr = max_val
-            max_ret = [scale_percent, max_val, max_loc]
+            max_ret = [scale, max_val, max_loc]
     return max_ret
 
 
@@ -194,6 +191,7 @@ class Tracker():
             # img_s = get_mask(img_hsv,np.array([[0,0,160],[360,10,255]]))
 
             img_s = self.get_minimap_mask(img_r)
+            # show_img(img_s)
             print(f'正在匹配{index}的缩放尺度')
             # [scale, corr, loc] = find_best_match(map_b, img_s, (100,200,5))
             # [cx, cy, corr] = self.get_coord_by_map(self.masked_maps[index],img_r)
@@ -214,20 +212,20 @@ class Tracker():
             print(f'地图{index}的相似度为{corr},当前坐标为{[x,y]}')
         return [index, [x,y], [hw,hh] ,corr]
 
-    def get_scale_percent(self, map_b, mini_b ):
+    def get_scale(self, map_b, mini_b ):
 
         # 获取小地图比例尺，一次获取，终生受益
 
-        [scale_percent, max_val, max_loc] = find_best_match(map_b, mini_b)
+        [scale, max_val, max_loc] = find_best_match(map_b, mini_b)
         # show_img(ret)
         [h, w] = mini_b.shape[:2]
-        hf = int(h * scale_percent/100)
-        wf = int(w * scale_percent/100)
+        hf = int(h * scale)
+        wf = int(w * scale)
 
         cv.rectangle(map_b, max_loc, np.add(max_loc, [wf,hf]), 255, 5   )
         show_img(map_b, 0.25)
         
-        return scale_percent
+        return scale
 
 
 
@@ -258,7 +256,7 @@ def test_1():
 
 
 def test_2(index):
-    
+    # 找某张图缩放比
 
     time.sleep(0.5)
     sw()
@@ -276,13 +274,14 @@ def test_2(index):
     show_img(mini)
     mini = cv.cvtColor(mini, cv.COLOR_BGR2GRAY)
     mini_b = cv.threshold(mini, 20, 150, cv.THRESH_BINARY)[1]
+    print('?')
     kernel = np.ones((5, 5), np.uint8)
     mini_b = cv.dilate(mini_b, kernel, iterations=1)
 
 
-    scale_percent = tr.get_scale_percent( map_b, mini_b)
+    scale = tr.get_scale( map_b, mini_b)
 
-    print(f'地图{index}最佳匹配缩放百分比为{scale_percent}')
+    print(f'地图{index}最佳匹配缩放百分比为{scale}')
 
 def test_3():
     # 将所有地图转为掩膜图
@@ -309,6 +308,7 @@ def test_4():
     print([hw,hh])
     cv.rectangle(map_r, [x,y], [x+1,y+1], [0,0,255],5 )
     cv.rectangle(map_r, [x-hw,y-hh], [x+hw,y+hh], [255,0,0],5 )
+    show_img(img_r)
     show_img(map_r,0.25)
 
 def test_5():
@@ -383,9 +383,9 @@ def test_7():
 
 
 if __name__ == '__main__':
-    test_7()
+    test_4()
     # test_6()
-    # index = '64.png'
+    index = '62.png'
     # test_2(index)
     # test_4()
 
